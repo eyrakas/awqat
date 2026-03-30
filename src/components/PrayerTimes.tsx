@@ -1,53 +1,107 @@
-import { Card, CardContent, Typography, Box, Grid, CircularProgress, Button } from '@mui/material'
-import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
-import { useEffect, useState } from 'react'
+import React from '@mui/material';
+import { Card, CardContent, Typography, Box, Grid, CircularProgress } from '@mui/material';
 
 interface Masjid {
-  id: string
-  name: string
-  lat: number
-  lng: number
-  address: string
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  address: string;
+  phone: string;
 }
 
 interface PrayerTimesData {
-  Fajr: string
-  Sunrise: string
-  Dhuhr: string
-  Asr: string
-  Sunset: string
-  Maghrib: string
-  Isha: string
+  Fajr: string;
+  Sunrise: string;
+  Dhuhr: string;
+  Asr: string;
+  Sunset: string;
+  Maghrib: string;
+  Isha: string;
 }
 
 interface Props {
-  masjid: Masjid
-  loading: boolean
+  prayerTimes: PrayerTimesData | null;
+  loading: boolean;
+  error: string | null;
+  selectedMasjid: Masjid | null;
 }
 
-export default function PrayerTimes({ masjid, loading }: Props) {
-  const [times, setTimes] = useState<PrayerTimesData | null>(null)
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
-
-  useEffect(() => {
-    fetchPrayerTimes()
-    const interval = setInterval(fetchPrayerTimes, 60000) // Refresh every minute
-    return () => clearInterval(interval)
-  }, [masjid])
-
-  const fetchPrayerTimes = async () => {
-    try {
-      const response = await fetch(
-        `https://api.aladhan.com/v1/timings/${Date.now().toString().slice(0, -3)}?latitude=${masjid.lat}&longitude=${masjid.lng}&method=2&school=1`
-      )
-      const data = await response.json()
-      if (data.data && data.data.timings) {
-        setTimes(data.data.timings)
-      }
-    } catch (error) {
-      console.error('Failed to fetch prayer times:', error)
-    }
+export default function PrayerTimes({ prayerTimes, loading, error, selectedMasjid }: Props) {
+  if (loading) {
+    return (
+      <Card>
+        <CardContent>
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+            <CircularProgress />
+          </Box>
+        </CardContent>
+      </Card>
+    );
   }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent>
+          <Typography color="error" align="center">
+            Error loading prayer times: {error}
+          </Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!prayerTimes || !selectedMasjid) {
+    return (
+      <Card>
+        <CardContent>
+          <Typography align="center" color="textSecondary">
+            Select a masjid to view prayer times
+          </Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const prayerNames = [
+    { key: 'Fajr', name: 'Fajr' },
+    { key: 'Sunrise', name: 'Sunrise' },
+    { key: 'Dhuhr', name: 'Dhuhr' },
+    { key: 'Asr', name: 'Asr' },
+    { key: 'Sunset', name: 'Sunset' },
+    { key: 'Maghrib', name: 'Maghrib' },
+    { key: 'Isha', name: 'Isha' }
+  ];
+
+  return (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" gutterBottom align="center">
+          Prayer Times
+        </Typography>
+        <Typography variant="subtitle1" align="center" color="textSecondary" gutterBottom>
+          {selectedMasjid.name}
+        </Typography>
+
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          {prayerNames.map(({ key, name }) => (
+            <Grid item xs={6} key={key}>
+              <Box sx={{ p: 1, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                <Typography variant="body2" color="textSecondary">
+                  {name}
+                </Typography>
+                <Typography variant="body1" fontWeight="bold">
+                  {prayerTimes[key as keyof PrayerTimesData]}
+                </Typography>
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+}
 
   const enableNotifications = async () => {
     if (!('Notification' in window)) {

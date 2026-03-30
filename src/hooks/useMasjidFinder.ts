@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react';
 
 interface Masjid {
-  id: string
-  name: string
-  lat: number
-  lng: number
-  address: string
-  phone?: string
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  address: string;
+  phone: string;
 }
 
 // Sample masjid data - in production, this would come from a database
@@ -48,6 +48,78 @@ const SAMPLE_MASJIDS: Masjid[] = [
     name: 'Dubai Grand Mosque',
     lat: 25.2048,
     lng: 55.2708,
+    address: 'Dubai, UAE',
+    phone: '+971 4-555-0123'
+  }
+];
+
+// Haversine formula to calculate distance between two points
+function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng/2) * Math.sin(dLng/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+export function useMasjidFinder() {
+  const [masjids, setMasjids] = useState<Masjid[]>(SAMPLE_MASJIDS);
+  const [loading, setLoading] = useState(false);
+
+  const searchMasjids = async (query: string): Promise<void> => {
+    setLoading(true);
+    try {
+      // Simple search - in production, this would be an API call
+      const filtered = SAMPLE_MASJIDS.filter(masjid =>
+        masjid.name.toLowerCase().includes(query.toLowerCase()) ||
+        masjid.address.toLowerCase().includes(query.toLowerCase())
+      );
+      setMasjids(filtered);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const findNearbyMasjids = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      const position = await new Promise<GeolocationCoordinates>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(pos.coords),
+          (err) => reject(err),
+          { timeout: 10000 }
+        );
+      });
+
+      // Find masjids within 50km
+      const nearby = SAMPLE_MASJIDS
+        .map(masjid => ({
+          ...masjid,
+          distance: getDistance(position.latitude, position.longitude, masjid.lat, masjid.lng)
+        }))
+        .filter(masjid => masjid.distance <= 50)
+        .sort((a, b) => a.distance - b.distance);
+
+      setMasjids(nearby);
+    } catch (error) {
+      // If geolocation fails, show all masjids
+      setMasjids(SAMPLE_MASJIDS);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    masjids,
+    loading,
+    searchMasjids,
+    findNearbyMasjids
+  };
+}
     address: 'Dubai, United Arab Emirates',
     phone: '+971 4-555-0456'
   },

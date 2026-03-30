@@ -1,153 +1,174 @@
-import { useState, useEffect } from 'react'
-import {
-  Container,
-  Box,
-  AppBar,
-  Toolbar,
-  Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  CircularProgress,
-  Snackbar,
-  Alert
-} from '@mui/material'
-import LocationOnIcon from '@mui/icons-material/LocationOn'
-import SearchIcon from '@mui/icons-material/Search'
-import './App.css'
-import PrayerTimes from './components/PrayerTimes'
-import MasjidMap from './components/MasjidMap'
-import MasjidList from './components/MasjidList'
-import { PermissionRequest } from './hooks/usePermissions'
-import { usePrayerTimes } from './hooks/usePrayerTimes'
-import { useMasjidFinder } from './hooks/useMasjidFinder'
+import React, { useState, useEffect } from 'react';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { CssBaseline, Container, Box, Snackbar, Alert } from '@mui/material';
+import PrayerTimes from './components/PrayerTimes';
+import MasjidMap from './components/MasjidMap';
+import MasjidList from './components/MasjidList';
+import { usePermissions } from './hooks/usePermissions';
+import { usePrayerTimes } from './hooks/usePrayerTimes';
+import { useMasjidFinder } from './hooks/useMasjidFinder';
+
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#667eea',
+    },
+    secondary: {
+      main: '#764ba2',
+    },
+  },
+});
 
 interface Masjid {
-  id: string
-  name: string
-  lat: number
-  lng: number
-  address: string
-  phone?: string
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  address: string;
+  phone: string;
 }
 
 function App() {
-  const [selectedMasjid, setSelectedMasjid] = useState<Masjid | null>(null)
-  const [showMasjidDialog, setShowMasjidDialog] = useState(false)
-  const [showPermissionRequest, setShowPermissionRequest] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'info' | 'success' | 'warning' | 'error' })
-  const { prayerTimes, loading: loadingPrayerTimes } = usePrayerTimes(selectedMasjid)
-  const { masjids, nearbyMasjids, searchMasjids } = useMasjidFinder()
+  const [selectedMasjid, setSelectedMasjid] = useState<Masjid | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
 
-  // Load saved masjid from localStorage on mount
+  const { permissionsGranted, requestPermissions } = usePermissions();
+  const { prayerTimes, loading: prayerTimesLoading, error: prayerTimesError } = usePrayerTimes(selectedMasjid);
+  const { masjids, loading: masjidsLoading, searchMasjids, findNearbyMasjids } = useMasjidFinder();
+
   useEffect(() => {
-    const permissionShown = localStorage.getItem('permissionShown')
-    if (!permissionShown) {
-      setShowPermissionRequest(true)
-    } else {
-      setShowPermissionRequest(false)
+    if (permissionsGranted && !selectedMasjid) {
+      // Auto-find nearby masjids when permissions are granted
+      handleFindNearby();
     }
-
-    const saved = localStorage.getItem('selectedMasjid')
-    if (saved) {
-      try {
-        setSelectedMasjid(JSON.parse(saved))
-        setShowMasjidDialog(false)
-      } catch (e) {
-        console.error('Failed to load saved masjid:', e)
-        setShowMasjidDialog(true)
-      }
-    } else {
-      setShowMasjidDialog(true)
-    }
-  }, [])
-
-  // Save selected masjid to localStorage
-  useEffect(() => {
-    if (selectedMasjid) {
-      localStorage.setItem('selectedMasjid', JSON.stringify(selectedMasjid))
-    }
-  }, [selectedMasjid])
+  }, [permissionsGranted]);
 
   const handleFindNearby = async () => {
-    setLoading(true)
     try {
-      const position = await new Promise<GeolocationCoordinates>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve(pos.coords),
-          reject
-        )
-      })
-      
-      const nearby = await nearbyMasjids(position.latitude, position.longitude, 5) // 5km radius
-      
-      if (nearby.length > 0) {
-        setSelectedMasjid(nearby[0])
-        setShowMasjidDialog(false)
-        setSnackbar({ open: true, message: `Found ${nearby.length} nearby masjids`, severity: 'success' })
-      } else {
-        setSnackbar({ open: true, message: 'No masjids found nearby', severity: 'warning' })
-      }
+      await findNearbyMasjids();
+      setSnackbar({
+        open: true,
+        message: 'Found nearby masjids!',
+        severity: 'success'
+      });
     } catch (error) {
-      setSnackbar({ open: true, message: 'Could not get location', severity: 'error' })
-    } finally {
-      setLoading(false)
+      setSnackbar({
+        open: true,
+        message: 'Could not find nearby masjids. Please check location permissions.',
+        severity: 'error'
+      });
     }
-  }
+  };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return
-    
-    setLoading(true)
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
     try {
-      const results = await searchMasjids(searchQuery)
-      if (results.length > 0) {
-        setSelectedMasjid(results[0])
-        setShowMasjidDialog(false)
-        setSearchQuery('')
-        setSnackbar({ open: true, message: `Selected: ${results[0].name}`, severity: 'success' })
-      } else {
-        setSnackbar({ open: true, message: 'No masjids found', severity: 'warning' })
-      }
+      await searchMasjids(query);
     } catch (error) {
-      setSnackbar({ open: true, message: 'Search failed', severity: 'error' })
-    } finally {
-      setLoading(false)
+      setSnackbar({
+        open: true,
+        message: 'Search failed. Please try again.',
+        severity: 'error'
+      });
     }
-  }
+  };
 
-  const handleChangeMasjid = () => {
-    setShowMasjidDialog(true)
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  if (!permissionsGranted) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Container maxWidth="sm" sx={{ py: 4 }}>
+          <Box sx={{ textAlign: 'center' }}>
+            <h1>Welcome to Awqat</h1>
+            <p>To use this app, we need access to your location to find nearby masjids and send prayer time notifications.</p>
+            <button
+              onClick={requestPermissions}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: theme.palette.primary.main,
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                cursor: 'pointer',
+                marginTop: '20px'
+              }}
+            >
+              Enable All Features
+            </button>
+          </Box>
+        </Container>
+      </ThemeProvider>
+    );
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-      <AppBar position="static" sx={{ background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(10px)' }}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            🕌 Awqat
-          </Typography>
-          {selectedMasjid && (
-            <Button color="inherit" onClick={handleChangeMasjid} size="small">
-              Change Masjid
-            </Button>
-          )}
-        </Toolbar>
-      </AppBar>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Container maxWidth="lg" sx={{ py: 2 }}>
+        <Box sx={{ mb: 3 }}>
+          <h1 style={{ textAlign: 'center', marginBottom: '8px' }}>Awqat</h1>
+          <p style={{ textAlign: 'center', color: '#666', marginBottom: '24px' }}>
+            Prayer Times & Masjid Finder
+          </p>
+        </Box>
 
-      <Container maxWidth="md" sx={{ flexGrow: 1, py: 4, overflow: 'auto' }}>
-        {showPermissionRequest ? (
-          <Box sx={{ mt: 4 }}>
-            <PermissionRequest
-              onComplete={() => {
-                setShowPermissionRequest(false)
-                localStorage.setItem('permissionShown', 'true')
-              }}
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
+          <Box sx={{ flex: 1 }}>
+            <PrayerTimes
+              prayerTimes={prayerTimes}
+              loading={prayerTimesLoading}
+              error={prayerTimesError}
+              selectedMasjid={selectedMasjid}
+            />
+          </Box>
+
+          <Box sx={{ flex: 1 }}>
+            <MasjidList
+              masjids={masjids}
+              loading={masjidsLoading}
+              selectedMasjid={selectedMasjid}
+              onSelectMasjid={setSelectedMasjid}
+              onSearch={handleSearch}
+              onFindNearby={handleFindNearby}
+              searchQuery={searchQuery}
+            />
+          </Box>
+        </Box>
+
+        <Box sx={{ mt: 3, height: '400px' }}>
+          <MasjidMap
+            masjids={masjids}
+            selectedMasjid={selectedMasjid}
+            onSelectMasjid={setSelectedMasjid}
+          />
+        </Box>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Container>
+    </ThemeProvider>
+  );
+}
+
+export default App;
             />
           </Box>
         ) : selectedMasjid ? (

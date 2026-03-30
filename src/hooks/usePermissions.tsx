@@ -1,53 +1,60 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Box, Button, Card, CardContent, Typography, Alert } from '@mui/material'
-import LocationOnIcon from '@mui/icons-material/LocationOn'
-import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
-
-interface PermissionStatus {
-  location: PermissionState | null
-  notification: PermissionState | null
-}
+import { useState, useCallback, useEffect } from 'react';
 
 export function usePermissions() {
-  const [permissions, setPermissions] = useState<PermissionStatus>({
-    location: null,
-    notification: null
-  })
-  const [requested, setRequested] = useState(false)
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
 
-  const checkPermissions = useCallback(async () => {
-    try {
-      // Check location permission
-      const locationPerm = await navigator.permissions?.query?.({ name: 'geolocation' })
-      // Check notification permission
-      const notificationPerm = Notification.permission as PermissionState
-
-      const nextPermissions = {
-        location: locationPerm?.state || null,
-        notification: notificationPerm
-      }
-
-      setPermissions(nextPermissions)
-
-      // If permissions are already granted, mark as done (avoid repeated prompt)
-      if (nextPermissions.location === 'granted' && nextPermissions.notification === 'granted') {
-        localStorage.setItem('permissionShown', 'true')
-      }
-    } catch (err) {
-      console.error('Error checking permissions:', err)
-    }
-  }, [])
+  useEffect(() => {
+    // Check if permissions were already granted
+    const granted = localStorage.getItem('permissionsGranted') === 'true';
+    setPermissionsGranted(granted);
+  }, []);
 
   const requestPermissions = useCallback(async () => {
     try {
-      // Request location
-      await new Promise<GeolocationCoordinates>((resolve, reject) => {
+      // Request location permission
+      const locationPromise = new Promise<boolean>((resolve) => {
         navigator.geolocation.getCurrentPosition(
-          (pos) => resolve(pos.coords),
-          reject,
+          () => resolve(true),
+          () => resolve(false),
           { timeout: 5000 }
-        )
-      }).catch(() => null) // Silently fail if user denies
+        );
+      });
+
+      // Request notification permission
+      const notificationPromise = new Promise<boolean>((resolve) => {
+        if ('Notification' in window) {
+          Notification.requestPermission().then((permission) => {
+            resolve(permission === 'granted');
+          });
+        } else {
+          resolve(false);
+        }
+      });
+
+      const [locationGranted, notificationGranted] = await Promise.all([
+        locationPromise,
+        notificationPromise
+      ]);
+
+      const allGranted = locationGranted && notificationGranted;
+      setPermissionsGranted(allGranted);
+
+      if (allGranted) {
+        localStorage.setItem('permissionsGranted', 'true');
+      }
+
+      return allGranted;
+    } catch (error) {
+      console.error('Error requesting permissions:', error);
+      return false;
+    }
+  }, []);
+
+  return {
+    permissionsGranted,
+    requestPermissions
+  };
+}
 
       // Request notification permission
       if ('Notification' in window) {
