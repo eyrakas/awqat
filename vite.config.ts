@@ -96,7 +96,7 @@ export default defineConfig({
       }
     })
   ],
-  base: '/awqat/',
+  base: '/',
   build: {
     outDir: 'dist',
     sourcemap: false,
