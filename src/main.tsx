@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+// @ts-expect-error virtual module provided by vite-plugin-pwa
 import { registerSW } from 'virtual:pwa-register'
 
 // Register service worker

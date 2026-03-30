@@ -40,7 +40,7 @@ function App() {
   const [showPermissionRequest, setShowPermissionRequest] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as const })
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'info' | 'success' | 'warning' | 'error' })
   const { prayerTimes, loading: loadingPrayerTimes } = usePrayerTimes(selectedMasjid)
   const { masjids, nearbyMasjids, searchMasjids } = useMasjidFinder()
 

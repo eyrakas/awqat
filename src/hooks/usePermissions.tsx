@@ -62,7 +62,7 @@ interface Props {
   onComplete: () => void
 }
 
-export function PermissionRequest({ onComplete }: Props) {
+export function PermissionRequest({ onComplete }: Props): JSX.Element {
   const { permissions, requestPermissions } = usePermissions()
   const [loading, setLoading] = useState(false)
 
