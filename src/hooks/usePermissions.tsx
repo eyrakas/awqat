@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Box, Button, Card, CardContent, Typography, Alert } from '@mui/material'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
@@ -22,10 +22,17 @@ export function usePermissions() {
       // Check notification permission
       const notificationPerm = Notification.permission as PermissionState
 
-      setPermissions({
+      const nextPermissions = {
         location: locationPerm?.state || null,
         notification: notificationPerm
-      })
+      }
+
+      setPermissions(nextPermissions)
+
+      // If permissions are already granted, mark as done (avoid repeated prompt)
+      if (nextPermissions.location === 'granted' && nextPermissions.notification === 'granted') {
+        localStorage.setItem('permissionShown', 'true')
+      }
     } catch (err) {
       console.error('Error checking permissions:', err)
     }
@@ -47,11 +54,13 @@ export function usePermissions() {
         await Notification.requestPermission()
       }
 
-      checkPermissions()
+      await checkPermissions()
       setRequested(true)
+      localStorage.setItem('permissionShown', 'true')
     } catch (err) {
       console.error('Error requesting permissions:', err)
       setRequested(true)
+      localStorage.setItem('permissionShown', 'true')
     }
   }, [checkPermissions])
 
@@ -63,8 +72,20 @@ interface Props {
 }
 
 export function PermissionRequest({ onComplete }: Props): JSX.Element {
-  const { permissions, requestPermissions } = usePermissions()
+  const { permissions, requestPermissions, checkPermissions } = usePermissions()
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    // Auto-complete if already granted
+    if (permissions.location === 'granted' && permissions.notification === 'granted') {
+      localStorage.setItem('permissionShown', 'true')
+      onComplete()
+    }
+  }, [permissions, onComplete])
+
+  useEffect(() => {
+    checkPermissions()
+  }, [checkPermissions])
 
   const handleRequestAll = async () => {
     setLoading(true)
